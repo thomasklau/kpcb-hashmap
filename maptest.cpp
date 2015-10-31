@@ -44,7 +44,7 @@ void simple_test()
     char *words[] = {"apple", "pear", "banana", "cherry", "kiwi", "melon", "grape", "plum"};
     char *extra = "strawberry";
     int len, nwords = sizeof(words)/sizeof(words[0]);
-    HashMap cm(100);
+    HashMap<int> cm(100);
 
     printf("\n----------------- Testing simple ops ------------------ \n");
     printf("Created empty CMap.\n");
