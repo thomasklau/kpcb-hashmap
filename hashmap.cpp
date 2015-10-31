@@ -1,9 +1,24 @@
-/*
- * File: hashmap.cpp
- * Author: Thomas Lau
- * ----------------------
- *
- */
+/* -------------------------------------------------------------------------- *
+ *                                HashMap                                     *
+ * -------------------------------------------------------------------------- *
+ * This project is a fixed-size hash map implementation that associates       *
+ * string keys with data object references (void*). This implementation uses  *
+ * open hashing (seperate chaining) which is probabilistically gives a better *
+ * runtime than open addressing. For more information, please refer to the    *
+ * README.                                                                    *
+ *                                                                            *
+ * Authors: Thomas Lau                                                        *
+ *                                                                            *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may    *
+ * not use this file except in compliance with the License. You may obtain a  *
+ * copy of the License at http://www.apache.org/licenses/LICENSE-2.0.         *
+ *                                                                            *
+ * Unless required by applicable law or agreed to in writing, software        *
+ * distributed under the License is distributed on an "AS IS" BASIS,          *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   *
+ * See the License for the specific language governing permissions and        *
+ * limitations under the License.                                             *
+ * -------------------------------------------------------------------------- */
 
 #include "hashmap.h"
 #include <stdio.h>
@@ -14,9 +29,20 @@
 
 //TODO: change to void*
 // templatize
-// 
-// a suggested value to use when given capacity_hint is 0
-#define DEFAULT_CAPACITY 199
+
+namespace{
+    int DEFAULT_CAPACITY = 199; //default fixed size of the map
+}
+
+HashMap::HashMap(){
+    numberOfBuckets = DEFAULT_CAPACITY;
+    numberOfElements = 0;
+    buckets = (void**)new char[sizeof(void**) * numberOfBuckets];
+
+    //init all of the buckets to NULL
+    for(int x = 0; x < numberOfBuckets; x++)
+        *getBucketAtIndex(x) = NULL;
+}
 
 HashMap::HashMap(int size){
     //make sure that we're given valid parameters
@@ -44,7 +70,7 @@ HashMap::HashMap(int size){
  * and deallocates memory used for the CMap's storage, including the keys
  * that were copied. Operates in linear-time.
  */
-void HashMap::cmap_dispose()
+HashMap::~HashMap()
 {
     void** tempArray[numberOfElements];
     int elemCount = 0;
@@ -83,7 +109,7 @@ void HashMap::cmap_dispose()
  * if necessary. An assert is raised on allocation failure. Operates in
  * constant-time (amortized).
  */
-void HashMap::cmap_put(const char *key, const void *addr)
+void HashMap::set(const char *key, const void *addr)
 {   
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
@@ -91,7 +117,7 @@ void HashMap::cmap_put(const char *key, const void *addr)
     if(*nodePointer != NULL) //if the key already exists in the map, just clean up and copy over the value
     {
         //cleanupFunction(getValueFromNode(*nodePointer));
-        memcpy(getValueFromNode(*nodePointer),addr,sizeOfElements);
+        memcpy(getValueFromNode(*nodePointer),&addr,sizeof(void*));
     }
     else //the key doesn't exist in the map so create a new node
     {
@@ -114,7 +140,7 @@ void HashMap::cmap_put(const char *key, const void *addr)
  * case-sensitively,  e.g. "binky" is not the same key as "BinKy".
  * Operates in constant-time.
  */
-void* HashMap::cmap_get(const char *key)
+void* HashMap::get(const char *key)
 {
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
@@ -132,7 +158,7 @@ void* HashMap::cmap_get(const char *key)
  * key string is deallocated. Note that keys are compared case-sensitively,
  * e.g. "binky" is not the same key as "BinKy". Operates in constant-time.
  */
-void HashMap::cmap_remove(const char *key)
+void HashMap::remove(const char *key)
 {
     int foundKey = 0;
     void** prevNodePointer = findKey(key, 1, &foundKey);
@@ -168,9 +194,20 @@ void HashMap::cmap_remove(const char *key)
  * Returns the number of entries currently stored in the CMap. Operates in
  * constant-time.
  */
-int HashMap::cmap_count()
+int HashMap::getSize()
 {
     return numberOfElements;
+}
+/**
+ * Function: getLoadFactor
+ * Usage: int count = cmap_count(m)
+ * --------------------------------
+ * Returns the number of entries currently stored in the CMap. Operates in
+ * constant-time.
+ */
+float HashMap::getLoadFactor()
+{
+    return (double)numberOfElements/numberOfBuckets;
 }
 /**
  * Functions: cmap_first, cmap_next
@@ -236,19 +273,11 @@ void** HashMap::getBucketAtIndex(const int index)
  */
 int HashMap::hash(const char *s, int nbuckets)
 {
-   /*const unsigned long MULTIPLIER = 2630849305L; // magic number
+   const unsigned long MULTIPLIER = 2630849305L; // magic number
    unsigned long hashcode = 0;
    for (int i = 0; s[i] != '\0'; i++)
-      hashcode = hashcode * MULTIPLIER + s[i];*/
-
-    unsigned long hash = 5381;
-    int c;
-
-    while (c = *s++)
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-
-    return hash % nbuckets;
-    //return hashcode % nbuckets;
+      hashcode = hashcode * MULTIPLIER + s[i];
+    return hashcode % nbuckets;
 }
 
 //empty clean up function to assign to the function pointer if we are passed NULL for our CleanupValueFn
@@ -263,21 +292,22 @@ void* HashMap::getKeyFromNode(const void* node)
 //given a void* node, perform pointer arthemetic to return a pointer to the start of the value in the node
 void* HashMap::getValueFromNode(const void* node)
 {
-    return (char*)node + sizeof(void*) + strlen((char*)getKeyFromNode(node)) + 1;
+    return (char*)node + sizeof(void**) + strlen((char*)getKeyFromNode(node)) + 1;
 }
 
+//layout of a node: NEXT_PTR/STRING/ELEMENT_ADDRESS
 //returns the address to a newly created node with key and addr, pointing to NULL as the next node
 void* HashMap::createNode(const char* key, const void* addr)
 {
-    void* node = malloc(sizeof(void**)+(strlen(key)+1)+sizeOfElements); //malloc the size that we need for the void** pointer, the key + '\0', and the value
+    void* node = new char[sizeof(void**)+(strlen(key)+1)+sizeof(void*)]; //malloc the size that we need for the void** pointer, the key + '\0', and the value
 
     void** nextNodeToPointTo = (void**)new char[sizeof(void**)]; //malloc our pointer to the next element in the array
     *nextNodeToPointTo = NULL;
 
     //copy over our values into the memory allocated to the node
-    memcpy(node,nextNodeToPointTo,sizeof(void*));
+    memcpy(node,nextNodeToPointTo,sizeof(void**));
     strcpy((char*)getKeyFromNode(node),key);
-    memcpy(getValueFromNode(node),addr,sizeOfElements);
+    memcpy(getValueFromNode(node),&addr,sizeof(void*));
     free(nextNodeToPointTo);
 
     return node;

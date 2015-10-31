@@ -48,33 +48,33 @@ void simple_test()
 
     printf("\n----------------- Testing simple ops ------------------ \n");
     printf("Created empty CMap.\n");
-    verify_int(0, cm.cmap_count(), "cmap_count");
-    verify_ptr(NULL, cm.cmap_get("nonexistent"), "cmap_get(\"nonexistent\")");
+    verify_int(0, cm.getSize(), "cmap_count");
+    verify_ptr(NULL, cm.get("nonexistent"), "cmap_get(\"nonexistent\")");
 
     printf("\nAdding %d keys to CMap.\n", nwords);
     for (int i = 0; i < nwords; i++) {
         len = strlen(words[i]);
-        cm.cmap_put(words[i], &len); // associate word w/ its strlen
+        cm.set(words[i], &len); // associate word w/ its strlen
     }
-    verify_int(nwords, cm.cmap_count(), "cmap_count");
-    verify_int_ptr(strlen(words[0]), (int*)cm.cmap_get(words[0]), "cmap_get(\"apple\")");
+    verify_int(nwords, cm.getSize(), "cmap_count");
+    verify_int_ptr(strlen(words[0]), (int*)cm.get(words[0]), "cmap_get(\"apple\")");
 
     printf("\nAdd one more key to CMap.\n");
     len = strlen(extra);
-    cm.cmap_put(extra, &len);
-    verify_int(nwords+1, cm.cmap_count(), "cmap_count");
-    verify_int_ptr(strlen(extra), (int*)cm.cmap_get(extra), "cmap_get(\"strawberry\")");
+    cm.set(extra, &len);
+    verify_int(nwords+1, cm.getSize(), "cmap_count");
+    verify_int_ptr(strlen(extra), (int*)cm.get(extra), "cmap_get(\"strawberry\")");
 
     printf("\nReplace existing key in CMap.\n");
     len = 2*strlen(extra);
-    cm.cmap_put(extra, &len);
-    verify_int(nwords+1, cm.cmap_count(), "cmap_count");
-    verify_int_ptr(len, (int*)cm.cmap_get(extra), "cmap_get(\"strawberry\")");
+    cm.set(extra, &len);
+    verify_int(nwords+1, cm.getSize(), "cmap_count");
+    verify_int_ptr(len, (int*)cm.get(extra), "cmap_get(\"strawberry\")");
 
-    cm.cmap_remove(words[0]);
+    cm.remove(words[0]);
     printf("\nRemove key from CMap.\n");
-    verify_int(nwords, cm.cmap_count(), "cmap_count");
-    verify_ptr(NULL, cm.cmap_get(words[0]), "cmap_get(\"apple\")");
+    verify_int(nwords, cm.getSize(), "cmap_count");
+    verify_ptr(NULL, cm.get(words[0]), "cmap_get(\"apple\")");
 
     printf("\nUse iterator to count keys.\n");
     int nkeys = 0;
@@ -83,9 +83,7 @@ void simple_test()
         printf("%s\n",key);
         nkeys++;
     }
-    verify_int(cm.cmap_count(), nkeys, "Number of keys");
-
-    cm.cmap_dispose();
+    verify_int(cm.getSize(), nkeys, "Number of keys");
 }
 
 

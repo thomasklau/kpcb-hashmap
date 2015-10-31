@@ -17,12 +17,17 @@
 
 class HashMap{
 public:
+  //constructors
+  HashMap();
   HashMap(int size);
-  void cmap_dispose();
-  void cmap_put(const char *key, const void *addr);
-  void *cmap_get(const char *key);
-  void cmap_remove(const char *key);
-  int cmap_count();
+  ~HashMap();
+
+  //public functions
+  void set(const char *key, const void *addr);
+  void* get(const char *key);
+  void remove(const char *key);
+  int getSize();
+  float getLoadFactor();
   const char *cmap_first();
   const char *cmap_next(const char *prevkey);
 
@@ -34,7 +39,6 @@ private:
   static void* getValueFromNode(const void* node);
   void* createNode(const char* key, const void* addr);
   void** findKey(const char *key, int returnPrevFind, int* foundKey);
-
 
   //Local Variables for CMap
   int sizeOfElements; //the size of each value element
