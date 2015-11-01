@@ -8,7 +8,7 @@
  * in the top of your project. For more information, please refer to the      *
  * README.                                                                    *
  *                                                                            *
- * Authors: Thomas Lau                                                        *
+ * Author: Thomas Lau                                                         *
  *                                                                            *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may    *
  * not use this file except in compliance with the License. You may obtain a  *
@@ -31,59 +31,71 @@
 #include <string.h>
 
 namespace{ //local namespace variables
-    int DEFAULT_CAPACITY = 100;
+    int DEFAULT_SIZE = 100;
 }
 
-template<class T> class HashMap{
+class HashMap{
 public:
-  ///////////////////////////////////
-  // CONSTRUCTORS AND DESTRUCTORS
-  ///////////////////////////////////
-  HashMap();
-  HashMap(int size);
-  ~HashMap();
+    ///////////////////////////////////
+    // CONSTRUCTORS AND DESTRUCTORS
+    ///////////////////////////////////
+    HashMap();
+    HashMap(int size);
+    ~HashMap();
 
-  ///////////////////////////////////
-  // DATA STRUCTURE ACCESS METHODS
-  ///////////////////////////////////
-  void set(const char *key, const void *addr);
-  void* get(const char *key);
-  void remove(const char *key);
+    ///////////////////////////////////
+    // DATA STRUCTURE ACCESS METHODS
+    ///////////////////////////////////
+    bool set(const char *key, const void *addr);
+    void* get(const char *key);
+    void* remove(const char *key);
 
-  ///////////////////////////////////
-  // DATA STRUCTURE PROPERTIES
-  ///////////////////////////////////
-  int getSize();
-  float getLoadFactor();
+    ///////////////////////////////////
+    // DATA STRUCTURE PROPERTIES
+    ///////////////////////////////////
+    int getSize();
+    float getLoadFactor();
 
-  ///////////////////////////////////
-  // ITERATOR METHODS
-  ///////////////////////////////////
-  const char *cmap_first();
-  const char *cmap_next(const char *prevkey);
+    ///////////////////////////////////
+    // ITERATOR METHODS
+    ///////////////////////////////////
+    const char *firstNode();
+    const char *nextNode(const char *prevkey);
 
 private:
-  ///////////////////////////////////
-  // PRIVATE HELPER METHODS
-  ///////////////////////////////////
-  void** getBucketAtIndex(const int index);
-  static int hash(const char *s, int nbuckets);
-  static void emptyCleanUpFunction(void *addr);
-  static void* getKeyFromNode(const void* node);
-  static void* getValueFromNode(const void* node);
-  void* createNode(const char* key, const void* addr);
-  void** findKey(const char *key, int returnPrevFind, int* foundKey);
+    ///////////////////////////////////
+    // PRIVATE HELPER METHODS
+    ///////////////////////////////////
+    void** getBucketAtIndex(const int index);
+    static int hash(const char *s, int nbuckets);
+    static void emptyCleanUpFunction(void *addr);
+    static void* getKeyFromNode(const void* node);
+    static void* getValueFromNode(const void* node);
+    void* createNode(const char* key, const void* addr);
+    void** findKey(const char *key, int returnPrevFind, int* foundKey);
 
-  //Local Variables for CMap
-  int sizeOfElements; //the size of each value element
-  int numberOfBuckets; //the number of buckets currently in the map
-  int numberOfElements; //the number of elements (keys and values) current in the map
-  void** buckets; //array to store the pointers to each linkedlist of buffers
+    ///////////////////////////////////
+    // PRIVATE MEMBER VARIABLES
+    ///////////////////////////////////
+    int sizeOfElements; //the size of each value element
+    int numberOfBuckets; //the number of buckets currently in the HashMap
+    int numberOfElements; //the number of elements current in the HashMap
+    void** buckets; //array to store the pointers to each LinkedList of buffers
 
 };
-template <class T>
-HashMap<T>::HashMap(){
-    numberOfBuckets = DEFAULT_CAPACITY;
+///////////////////////////////////
+// CONSTRUCTORS AND DESTRUCTORS
+///////////////////////////////////
+/**
+ * HashMap()
+ * ----------------------------------------------------------------------------
+ * Creates a fixed-size HashMap of DEFAULT_SIZE. All buckets are initialized
+ * to point to NULL.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(k); k = DEFAULT_SIZE
+ */
+HashMap::HashMap(){
+    numberOfBuckets = DEFAULT_SIZE;
     numberOfElements = 0;
     buckets = (void**)new char[sizeof(void**) * numberOfBuckets];
 
@@ -91,14 +103,21 @@ HashMap<T>::HashMap(){
     for(int x = 0; x < numberOfBuckets; x++)
         *getBucketAtIndex(x) = NULL;
 }
-template <class T>
-HashMap<T>::HashMap(int size){
+/**
+ * HashMap()
+ * ----------------------------------------------------------------------------
+ * Creates a fixed-size HashMap of size. All buckets are initialized to point
+ * to NULL.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(k); k = size of HashMap
+ */
+HashMap::HashMap(int size){
     //make sure that we're given valid parameters
     assert(size > 0);
 
-    //if we're given 0 for our size, use the DEFAULT_CAPACITY
+    //if we're given 0 for our size, use the DEFAULT_SIZE
     if(size == 0) 
-        size = DEFAULT_CAPACITY;
+        size = DEFAULT_SIZE;
 
     numberOfBuckets = size;
     numberOfElements = 0;
@@ -109,22 +128,22 @@ HashMap<T>::HashMap(int size){
         *getBucketAtIndex(x) = NULL;
 
 }
-
 /**
- * Function: cmap_dispose
- * Usage: cmap_dispose(m)
- * ----------------------
- * Disposes of the CMap. Calls the client's cleanup function on all values
- * and deallocates memory used for the CMap's storage, including the keys
- * that were copied. Operates in linear-time.
+ * ~HashMap()
+ * ----------------------------------------------------------------------------
+ * Destructor for HashMap -- called when HashMap is explicitly deleted or goes
+ * out of scope. The destructor uses the previously specified class T to delete
+ * the T* pointers in each node of the HashMap to avoid memory leaks.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(k); k = number of nodes (keys and values)
  */
-template <class T>
-HashMap<T>::~HashMap()
+HashMap::~HashMap()
 {
     void** tempArray[numberOfElements];
     int elemCount = 0;
 
-    //loop through all the buckets and store the pointers in an array so that we don't have to deal with the messiness of additional pointers while we cleanup and free
+    // loop through all the buckets and store the pointers in an array so that
+    // we don't have to deal with freeing in place
     for(int x = 0; x < numberOfBuckets; x++)
     {
         void** tempBucket = buckets + x; //our current xth bucket
@@ -138,60 +157,53 @@ HashMap<T>::~HashMap()
 
     for(int x = 0; x < elemCount; x++)
     {
-        //cleanupFunction(getValueFromNode(tempArray[x]));
         free(tempArray[x]);
     }
 
     free(buckets);
 }
+///////////////////////////////////
+// DATA STRUCTURE ACCESS METHODS
+///////////////////////////////////
 /**
- * Function: cmap_put
- * Usage: cmap_put(m, "CS107", &val)
- * ---------------------------------
- * Associates the given key with a new value in the CMap. If there is an
- * existing value for the key, it is replaced with the new value. Before
- * being overwritten, the client's cleanup function is called on the old value.
- * addr is expected to be a valid pointer and the new value is copied
- * from the memory pointed to by addr. The key string is copied and stored
- * internally by the CMap. Note that keys are compared case-sensitively,
- * e.g. "binky" is not the same key as "BinKy". The capacity is enlarged
- * if necessary. An assert is raised on allocation failure. Operates in
- * constant-time (amortized).
+ * set(char* key, void* addr)
+ * ----------------------------------------------------------------------------
+ * Associates a char* key to a void* pointer to an outside data element. If the
+ * key already exists in the HashMap, it is replaced with the new pointer value
+ * provided.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(1) (amortized)
  */
-template <class T>
-void HashMap<T>::set(const char *key, const void *addr)
+bool HashMap::set(const char* key, const void* addr)
 {   
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
 
-    if(*nodePointer != NULL) //if the key already exists in the map, just clean up and copy over the value
+    if(*nodePointer != NULL) //if the key already exists in the map, copy over
     {
-        //cleanupFunction(getValueFromNode(*nodePointer));
         memcpy(getValueFromNode(*nodePointer),&addr,sizeof(void*));
     }
-    else //the key doesn't exist in the map so create a new node
+    else //the key doesn't exist in the map so we create a new node
     {
         void* node = createNode(key, addr);
-        assert(node != NULL);
+        if(node == NULL) //on allocation failure, return false
+            return false;
         *nodePointer = node;
         numberOfElements++;
     }
+    return true;
 }
 /**
- * Function: cmap_get
- * Usage: int val = *(int *)cmap_get(m, "CS107")
- * ---------------------------------------------
- * Searches the CMap for an entry with the given key and if found, returns
- * a pointer to its associated value.  If key is not found, then NULL is
- * returned as a sentinel.  Note this function returns a pointer into the
- * CMap's storage, so the pointer should be used with care. In particular,
- * the pointer returned by cmap_get can become invalid during a call that adds
- * or removes entries within the CMap.  Note that keys are compared
- * case-sensitively,  e.g. "binky" is not the same key as "BinKy".
- * Operates in constant-time.
+ * get(const char* key)
+ * ----------------------------------------------------------------------------
+ * Searches the HashMap for the given key and if found, returns a pointer to
+ * the appropriate value. If the key is not found, NULL is returned. To look
+ * for the correct key value, get() uses the hash() function that is specified
+ * by the HashMap.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(1) (amortized)
  */
-template <class T>
-void* HashMap<T>::get(const char *key)
+void* HashMap::get(const char *key)
 {
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
@@ -200,37 +212,35 @@ void* HashMap<T>::get(const char *key)
     return NULL;
 }
 /**
- * Function: cmap_remove
- * Usage: cmap_remove(m, "CS107")
- * ------------------------------
- * Searches the CMap for an entry with the given key and if found, removes that
- * key and its associated value.  If key is not found, no changes are made.
- * The client's cleanup function is called on the removed value and the copy of the
- * key string is deallocated. Note that keys are compared case-sensitively,
- * e.g. "binky" is not the same key as "BinKy". Operates in constant-time.
+ * remove(const char* key)
+ * ----------------------------------------------------------------------------
+ * Searches the HashMap for the given key and if found, removes the associated
+ * key and value from the HashMap; returning the value associated with the
+ * provided key. If the key is not found in the HashMap, NULL is returned.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(1) (amortized)
  */
-template <class T>
-void HashMap<T>::remove(const char *key)
+void* HashMap::remove(const char *key)
 {
     int foundKey = 0;
     void** prevNodePointer = findKey(key, 1, &foundKey);
-
+    void* value = NULL;
     if(foundKey)//if we find the key in the map
     {
         if(prevNodePointer == NULL) //the element is at index 0 of the bucket
         {
             int keyHash = hash(key, numberOfBuckets);
             void** bucketPointer = getBucketAtIndex(keyHash);
+            value = getValueFromNode(*bucketPointer);
             void* toReplacePointer = *(void**)(*bucketPointer); //temp pointer so that we can set our bucket to the next index
 
-            //cleanup and free the node
-            //cleanupFunction(getValueFromNode(*bucketPointer));
             free(*bucketPointer);
 
             //set the node to the next node
             *bucketPointer = toReplacePointer;
         }else{ //the element is not at index 0
             void** toRemovePointer = (void**)*prevNodePointer; //pointer to the node that we need to remove
+            value = getValueFromNode(*toRemovePointer);
             *prevNodePointer = *(void**)(*toRemovePointer); //set the next element of the previous node to the next element of the to remove node
 
             //cleanupFunction(getValueFromNode(*toRemovePointer));
@@ -238,47 +248,43 @@ void HashMap<T>::remove(const char *key)
         }
         numberOfElements--;
     }
+    return value;
 }
+///////////////////////////////////
+// DATA STRUCTURE PROPERTIES
+///////////////////////////////////
 /**
- * Function: cmap_count
- * Usage: int count = cmap_count(m)
- * --------------------------------
- * Returns the number of entries currently stored in the CMap. Operates in
- * constant-time.
+ * getSize()
+ * ----------------------------------------------------------------------------
+ * Returns the number of elements currently in the HashMap.
+ * ----------------------------------------------------------------------------
+ * Runtime: O(1)
  */
-template <class T>
-int HashMap<T>::getSize()
+int HashMap::getSize()
 {
     return numberOfElements;
 }
 /**
- * Function: getLoadFactor
- * Usage: int count = cmap_count(m)
- * --------------------------------
- * Returns the number of entries currently stored in the CMap. Operates in
- * constant-time.
+ * getLoadFactor()
+ * ----------------------------------------------------------------------------
+ * Returns the load factor of the HashMap. The load factor is calculate via
+ * (#items in map/#size of hash map).
  */
-template <class T>
-float HashMap<T>::getLoadFactor()
+float HashMap::getLoadFactor()
 {
     return (double)numberOfElements/numberOfBuckets;
 }
+///////////////////////////////////
+// ITERATOR METHODS
+///////////////////////////////////
 /**
- * Functions: cmap_first, cmap_next
- * Usage: for (const char *key = cmap_first(m); key != NULL; key = cmap_next(m, key))
- * ----------------------------------------------------------------------------------
- * These functions provide iteration over the CMap keys. The client
- * starts an iteration with a call to cmap_first which returns the first
- * key of the CMap or NULL if the CMap is empty. The client loop calls
- * cmap_next passing the previous key and receives the next key in the iteration
- * or NULL if there are no more keys. Keys are iterated in arbitrary order.
- * The argument to cmap_next is expected to be a valid pointer to a key string
- * as returned by a previous call to cmap_first/cmap_next. The CMap supports
- * multiple iterations at same time without interference, however, the client
- * should not add/remove/rearrange CMap entries in the midst of iterating.
+ * firstNode(), nextNode(const char* prevKey)
+ * ----------------------------------------------------------------------------
+ * These functions allow iteration over the nodes (key/value pairs) in the
+ * HashMap. firstNode() returns the first key found in the map. nextNode(prev)
+ * returns the next key found in the map after the specified key, prev.
  */
-template <class T>
-const char* HashMap<T>::cmap_first()
+const char* HashMap::firstNode()
 {
     //loop over all of the buckets and return the first node we find
     for(int x = 0; x < numberOfBuckets; x ++) //look in all the buckets
@@ -286,14 +292,12 @@ const char* HashMap<T>::cmap_first()
             return (char*)getKeyFromNode(*getBucketAtIndex(x));
     return NULL;
 }
-
-template <class T>
-const char* HashMap<T>::cmap_next(const char *prevkey)
+const char* HashMap::nextNode(const char* prevKey)
 {
-    void** currentNodePointer = (void**)(prevkey-sizeof(void**)); //go backwards to get the pointer to the next node
+    void** currentNodePointer = (void**)(prevKey-sizeof(void**)); //go backwards to get the pointer to the next node
     if((*currentNodePointer)==NULL) //if we're at the last element of the linked list
     {
-        int bucketNumber = hash(prevkey, numberOfBuckets);
+        int bucketNumber = hash(prevKey, numberOfBuckets);
         if(bucketNumber >= numberOfBuckets-1) //if there are no more elements left to iterate over
             return NULL;
 
@@ -306,10 +310,11 @@ const char* HashMap<T>::cmap_next(const char *prevkey)
     //else just get the next key in the linked list
     return (char*)getKeyFromNode(*currentNodePointer);
 }
-
-template <class T>
+///////////////////////////////////
+// PRIVATE HELPER METHODS
+///////////////////////////////////
 //returns a void** pointing to map's index-th bucket
-void** HashMap<T>::getBucketAtIndex(const int index)
+void** HashMap::getBucketAtIndex(const int index)
 {
     return (void**)(buckets+index);
 }
@@ -327,8 +332,7 @@ void** HashMap<T>::getBucketAtIndex(const int index)
  * The hash is case-sensitive, "ZELENSKI" and "Zelenski" are
  * not guaranteed to hash to same code.
  */
-template <class T>
-int HashMap<T>::hash(const char *s, int nbuckets)
+int HashMap::hash(const char *s, int nbuckets)
 {
    const unsigned long MULTIPLIER = 2630849305L; // magic number
    unsigned long hashcode = 0;
@@ -336,25 +340,22 @@ int HashMap<T>::hash(const char *s, int nbuckets)
       hashcode = hashcode * MULTIPLIER + s[i];
     return hashcode % nbuckets;
 }
-
-//given a void* node, perform pointer arthemetic to return a pointer to the start of the key in the node
-template <class T>
-void* HashMap<T>::getKeyFromNode(const void* node)
+// given a void* node, perform pointer arthemetic to return a pointer to the
+// start of the key in the node
+void* HashMap::getKeyFromNode(const void* node)
 {
     return (char*)node + sizeof(void*);
 }
-
-//given a void* node, perform pointer arthemetic to return a pointer to the start of the value in the node
-template <class T>
-void* HashMap<T>::getValueFromNode(const void* node)
+// given a void* node, perform pointer arthemetic to return a pointer to the
+// start of the value in the node
+void* HashMap::getValueFromNode(const void* node)
 {
     return (char*)node + sizeof(void**) + strlen((char*)getKeyFromNode(node)) + 1;
 }
-
-//layout of a node: NEXT_PTR/STRING/ELEMENT_ADDRESS
-//returns the address to a newly created node with key and addr, pointing to NULL as the next node
-template <class T>
-void* HashMap<T>::createNode(const char* key, const void* addr)
+// layout of a node: NEXT_PTR/STRING/ELEMENT_ADDRESS
+// returns the address to a newly created node with key and addr, pointing to
+// NULL as the next node
+void* HashMap::createNode(const char* key, const void* addr)
 {
     void* node = new char[sizeof(void**)+(strlen(key)+1)+sizeof(void*)]; //malloc the size that we need for the void** pointer, the key + '\0', and the value
 
@@ -369,10 +370,10 @@ void* HashMap<T>::createNode(const char* key, const void* addr)
 
     return node;
 }
-
-//returns a void** pointer to the node with key in CMap if the key is found in the map, changes foundKey to 1 if we find a key, returns the previous node if returnPrevFind is set to 1
-template <class T>
-void** HashMap<T>::findKey(const char *key, int returnPrevFind, int* foundKey)
+// returns a void** pointer to the node with key in CMap if the key is found in
+// the map, changes foundKey to 1 if we find a key, returns the previous node
+// if returnPrevFind is set to 1
+void** HashMap::findKey(const char *key, int returnPrevFind, int* foundKey)
 {
     int keyHash = hash(key, numberOfBuckets);
 
@@ -399,21 +400,5 @@ void** HashMap<T>::findKey(const char *key, int returnPrevFind, int* foundKey)
     }
     return keyBucket;
 }
-
-
- /**
-  * Type: CleanupValueFn
-  * --------------------
-  * CleanupValueFn is the typename for a pointer to a client-supplied
-  * cleanup function. The client passes a cleanup function to cmap_create
-  * and the CMap will apply that function to a value that is being
-  * removed/replaced/disposed. The cleanup function takes one void* pointer
-  * that points to the value.
-  *
-  * The typedef allows the nickname "CleanupValueFn" to stand in for the
-  * longer declaration.  CleanupValueFn can be used as the declared type
-  * for a variable, parameter, struct field, and so on.
-  */
-typedef void (*CleanupValueFn)(void *addr);
 
 #endif

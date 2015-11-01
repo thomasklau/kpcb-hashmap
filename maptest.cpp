@@ -44,7 +44,7 @@ void simple_test()
     char *words[] = {"apple", "pear", "banana", "cherry", "kiwi", "melon", "grape", "plum"};
     char *extra = "strawberry";
     int len, nwords = sizeof(words)/sizeof(words[0]);
-    HashMap<int> cm(100);
+    HashMap cm(100);
 
     printf("\n----------------- Testing simple ops ------------------ \n");
     printf("Created empty CMap.\n");
@@ -78,7 +78,7 @@ void simple_test()
 
     printf("\nUse iterator to count keys.\n");
     int nkeys = 0;
-    for (const char *key = cm.cmap_first(); key != NULL; key = cm.cmap_next(key))
+    for (const char *key = cm.firstNode(); key != NULL; key = cm.nextNode(key))
     {
         printf("%s\n",key);
         nkeys++;
