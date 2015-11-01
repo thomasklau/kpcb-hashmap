@@ -34,21 +34,24 @@ namespace{ //local namespace variables
     int DEFAULT_SIZE = 100;
 }
 
+typedef void (*CleanupValueFn)(void *addr);
+//empty clean up function to assign to the function pointer if we are passed NULL for our CleanupValueFn
+
 class HashMap{
 public:
     ///////////////////////////////////
     // CONSTRUCTORS AND DESTRUCTORS
     ///////////////////////////////////
-    HashMap();
-    HashMap(int size);
+    HashMap(int mapSize, int elementSize);
+    HashMap(int mapSize, int elementSize, CleanupValueFn fn);
     ~HashMap();
 
     ///////////////////////////////////
     // DATA STRUCTURE ACCESS METHODS
     ///////////////////////////////////
-    bool set(const char *key, const void *addr);
-    void* get(const char *key);
-    void* remove(const char *key);
+    bool set(char *key, void *addr);
+    void* get(char *key);
+    void* remove(char *key);
 
     ///////////////////////////////////
     // DATA STRUCTURE PROPERTIES
@@ -59,20 +62,20 @@ public:
     ///////////////////////////////////
     // ITERATOR METHODS
     ///////////////////////////////////
-    const char *firstNode();
-    const char *nextNode(const char *prevkey);
+    char *firstNode();
+    char *nextNode(char *prevkey);
 
 private:
     ///////////////////////////////////
     // PRIVATE HELPER METHODS
     ///////////////////////////////////
-    void** getBucketAtIndex(const int index);
-    static int hash(const char *s, int nbuckets);
+    void** getBucketAtIndex(int index);
+    static int hash(char *s, int nbuckets);
+    static void* getKeyFromNode(void* node);
+    static void* getValueFromNode(void* node);
+    void* createNode(char* key, void* addr);
+    void** findKey(char *key, int returnPrevFind, int* foundKey);
     static void emptyCleanUpFunction(void *addr);
-    static void* getKeyFromNode(const void* node);
-    static void* getValueFromNode(const void* node);
-    void* createNode(const char* key, const void* addr);
-    void** findKey(const char *key, int returnPrevFind, int* foundKey);
 
     ///////////////////////////////////
     // PRIVATE MEMBER VARIABLES
@@ -81,27 +84,38 @@ private:
     int numberOfBuckets; //the number of buckets currently in the HashMap
     int numberOfElements; //the number of elements current in the HashMap
     void** buckets; //array to store the pointers to each LinkedList of buffers
-
+    CleanupValueFn cleanupFunction;
 };
+
 ///////////////////////////////////
 // CONSTRUCTORS AND DESTRUCTORS
 ///////////////////////////////////
 /**
  * HashMap()
  * ----------------------------------------------------------------------------
- * Creates a fixed-size HashMap of DEFAULT_SIZE. All buckets are initialized
- * to point to NULL.
+ * Creates a fixed-size HashMap of size. All buckets are initialized to point
+ * to NULL.
  * ----------------------------------------------------------------------------
- * Runtime: O(k); k = DEFAULT_SIZE
+ * Runtime: O(k); k = size of HashMap
  */
-HashMap::HashMap(){
-    numberOfBuckets = DEFAULT_SIZE;
+HashMap::HashMap(int mapSize, int elementSize){
+    //make sure that we're given valid parameters
+    assert(mapSize > 0);
+
+    //if we're given 0 for our size, use the DEFAULT_SIZE
+    if(mapSize == 0) 
+        mapSize = DEFAULT_SIZE;
+
+    numberOfBuckets = mapSize;
     numberOfElements = 0;
-    buckets = (void**)new char[sizeof(void**) * numberOfBuckets];
+    sizeOfElements = elementSize;
+    buckets = (void**)new char[sizeof(void**)*numberOfBuckets];
 
     //init all of the buckets to NULL
     for(int x = 0; x < numberOfBuckets; x++)
         *getBucketAtIndex(x) = NULL;
+
+    cleanupFunction = emptyCleanUpFunction;
 }
 /**
  * HashMap()
@@ -111,22 +125,24 @@ HashMap::HashMap(){
  * ----------------------------------------------------------------------------
  * Runtime: O(k); k = size of HashMap
  */
-HashMap::HashMap(int size){
+HashMap::HashMap(int mapSize, int elementSize, CleanupValueFn fn){
     //make sure that we're given valid parameters
-    assert(size > 0);
+    assert(mapSize > 0);
 
     //if we're given 0 for our size, use the DEFAULT_SIZE
-    if(size == 0) 
-        size = DEFAULT_SIZE;
+    if(mapSize == 0) 
+        mapSize = DEFAULT_SIZE;
 
-    numberOfBuckets = size;
+    numberOfBuckets = mapSize;
     numberOfElements = 0;
+    sizeOfElements = elementSize;
     buckets = (void**)new char[sizeof(void**)*numberOfBuckets];
 
     //init all of the buckets to NULL
     for(int x = 0; x < numberOfBuckets; x++)
         *getBucketAtIndex(x) = NULL;
 
+    cleanupFunction = fn;
 }
 /**
  * ~HashMap()
@@ -174,14 +190,15 @@ HashMap::~HashMap()
  * ----------------------------------------------------------------------------
  * Runtime: O(1) (amortized)
  */
-bool HashMap::set(const char* key, const void* addr)
+bool HashMap::set(char* key, void* addr)
 {   
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
 
     if(*nodePointer != NULL) //if the key already exists in the map, copy over
     {
-        memcpy(getValueFromNode(*nodePointer),&addr,sizeof(void*));
+        cleanupFunction(getValueFromNode(*nodePointer));
+        memcpy(getValueFromNode(*nodePointer),addr,sizeOfElements);
     }
     else //the key doesn't exist in the map so we create a new node
     {
@@ -194,7 +211,7 @@ bool HashMap::set(const char* key, const void* addr)
     return true;
 }
 /**
- * get(const char* key)
+ * get(char* key)
  * ----------------------------------------------------------------------------
  * Searches the HashMap for the given key and if found, returns a pointer to
  * the appropriate value. If the key is not found, NULL is returned. To look
@@ -203,7 +220,7 @@ bool HashMap::set(const char* key, const void* addr)
  * ----------------------------------------------------------------------------
  * Runtime: O(1) (amortized)
  */
-void* HashMap::get(const char *key)
+void* HashMap::get(char *key)
 {
     int foundKey = 0;
     void** nodePointer = findKey(key, 0,&foundKey);
@@ -212,7 +229,7 @@ void* HashMap::get(const char *key)
     return NULL;
 }
 /**
- * remove(const char* key)
+ * remove(char* key)
  * ----------------------------------------------------------------------------
  * Searches the HashMap for the given key and if found, removes the associated
  * key and value from the HashMap; returning the value associated with the
@@ -220,7 +237,7 @@ void* HashMap::get(const char *key)
  * ----------------------------------------------------------------------------
  * Runtime: O(1) (amortized)
  */
-void* HashMap::remove(const char *key)
+void* HashMap::remove(char *key)
 {
     int foundKey = 0;
     void** prevNodePointer = findKey(key, 1, &foundKey);
@@ -237,13 +254,14 @@ void* HashMap::remove(const char *key)
             free(*bucketPointer);
 
             //set the node to the next node
+            cleanupFunction(getValueFromNode(*bucketPointer));
             *bucketPointer = toReplacePointer;
         }else{ //the element is not at index 0
             void** toRemovePointer = (void**)*prevNodePointer; //pointer to the node that we need to remove
             value = getValueFromNode(*toRemovePointer);
             *prevNodePointer = *(void**)(*toRemovePointer); //set the next element of the previous node to the next element of the to remove node
 
-            //cleanupFunction(getValueFromNode(*toRemovePointer));
+            cleanupFunction(getValueFromNode(*toRemovePointer));
             free(*toRemovePointer);
         }
         numberOfElements--;
@@ -278,13 +296,13 @@ float HashMap::getLoadFactor()
 // ITERATOR METHODS
 ///////////////////////////////////
 /**
- * firstNode(), nextNode(const char* prevKey)
+ * firstNode(), nextNode(char* prevKey)
  * ----------------------------------------------------------------------------
  * These functions allow iteration over the nodes (key/value pairs) in the
  * HashMap. firstNode() returns the first key found in the map. nextNode(prev)
  * returns the next key found in the map after the specified key, prev.
  */
-const char* HashMap::firstNode()
+char* HashMap::firstNode()
 {
     //loop over all of the buckets and return the first node we find
     for(int x = 0; x < numberOfBuckets; x ++) //look in all the buckets
@@ -292,7 +310,7 @@ const char* HashMap::firstNode()
             return (char*)getKeyFromNode(*getBucketAtIndex(x));
     return NULL;
 }
-const char* HashMap::nextNode(const char* prevKey)
+char* HashMap::nextNode(char* prevKey)
 {
     void** currentNodePointer = (void**)(prevKey-sizeof(void**)); //go backwards to get the pointer to the next node
     if((*currentNodePointer)==NULL) //if we're at the last element of the linked list
@@ -314,25 +332,11 @@ const char* HashMap::nextNode(const char* prevKey)
 // PRIVATE HELPER METHODS
 ///////////////////////////////////
 //returns a void** pointing to map's index-th bucket
-void** HashMap::getBucketAtIndex(const int index)
+void** HashMap::getBucketAtIndex(int index)
 {
     return (void**)(buckets+index);
 }
-/* Function: hash
- * --------------
- * This function adapted from Eric Roberts' _The Art and Science of C_
- * It takes a string and uses it to derive a "hash code," which
- * is an integer in the range [0..nbuckets-1]. The hash code is computed
- * using a method called "linear congruence." A similar function using this
- * method is described on page 144 of Kernighan and Ritchie. The choice of
- * the value for the multiplier can have a significant effort on the
- * performance of the algorithm, but not on its correctness.
- * The computed hash value is stable, e.g. passing the same string and
- * nbuckets to function again will always return the same code.
- * The hash is case-sensitive, "ZELENSKI" and "Zelenski" are
- * not guaranteed to hash to same code.
- */
-int HashMap::hash(const char *s, int nbuckets)
+int HashMap::hash(char *s, int nbuckets)
 {
    const unsigned long MULTIPLIER = 2630849305L; // magic number
    unsigned long hashcode = 0;
@@ -342,22 +346,21 @@ int HashMap::hash(const char *s, int nbuckets)
 }
 // given a void* node, perform pointer arthemetic to return a pointer to the
 // start of the key in the node
-void* HashMap::getKeyFromNode(const void* node)
+void* HashMap::getKeyFromNode(void* node)
 {
     return (char*)node + sizeof(void*);
 }
 // given a void* node, perform pointer arthemetic to return a pointer to the
 // start of the value in the node
-void* HashMap::getValueFromNode(const void* node)
+void* HashMap::getValueFromNode(void* node)
 {
     return (char*)node + sizeof(void**) + strlen((char*)getKeyFromNode(node)) + 1;
 }
-// layout of a node: NEXT_PTR/STRING/ELEMENT_ADDRESS
 // returns the address to a newly created node with key and addr, pointing to
 // NULL as the next node
-void* HashMap::createNode(const char* key, const void* addr)
+void* HashMap::createNode(char* key, void* addr)
 {
-    void* node = new char[sizeof(void**)+(strlen(key)+1)+sizeof(void*)]; //malloc the size that we need for the void** pointer, the key + '\0', and the value
+    void* node = new char[sizeof(void**)+(strlen(key)+1)+sizeOfElements]; //malloc the size that we need for the void** pointer, the key + '\0', and the value
 
     void** nextNodeToPointTo = (void**)new char[sizeof(void**)]; //malloc our pointer to the next element in the array
     *nextNodeToPointTo = NULL;
@@ -365,7 +368,7 @@ void* HashMap::createNode(const char* key, const void* addr)
     //copy over our values into the memory allocated to the node
     memcpy(node,nextNodeToPointTo,sizeof(void**));
     strcpy((char*)getKeyFromNode(node),key);
-    memcpy(getValueFromNode(node),&addr,sizeof(void*));
+    memcpy(getValueFromNode(node),addr,sizeOfElements);
     free(nextNodeToPointTo);
 
     return node;
@@ -373,7 +376,7 @@ void* HashMap::createNode(const char* key, const void* addr)
 // returns a void** pointer to the node with key in CMap if the key is found in
 // the map, changes foundKey to 1 if we find a key, returns the previous node
 // if returnPrevFind is set to 1
-void** HashMap::findKey(const char *key, int returnPrevFind, int* foundKey)
+void** HashMap::findKey(char *key, int returnPrevFind, int* foundKey)
 {
     int keyHash = hash(key, numberOfBuckets);
 
@@ -400,5 +403,6 @@ void** HashMap::findKey(const char *key, int returnPrevFind, int* foundKey)
     }
     return keyBucket;
 }
+void HashMap::emptyCleanUpFunction(void *addr) {};
 
 #endif

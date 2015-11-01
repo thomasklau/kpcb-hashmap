@@ -4,5 +4,5 @@ cmake_minimum_required (VERSION 2.8.11)
 
 set(AUTHOR "Thomas Kenying Lau <thomklau@stanford.edu>")
 project (HASHMAP_IMPLEMENTATION)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 add_executable(maptest maptest.cpp)
